@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Saveur" />
+  <title>Saveur — Food Order & Pay</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #0a0a0f; overflow-x: hidden; }
+    body { -webkit-tap-highlight-color: transparent; -webkit-font-smoothing: antialiased; }
+    #root { min-height: 100vh; }
+    ::-webkit-scrollbar { display: none; }
+    * { scrollbar-width: none; }
+    input, button { font-family: 'DM Sans', sans-serif; }
+    @keyframes splashPop { from{opacity:0;transform:scale(0.7)} to{opacity:1;transform:scale(1)} }
+    @keyframes loadBar { from{width:0} to{width:100%} }
+    @keyframes cartPop { from{opacity:0;transform:translateX(-50%) scale(0.8)} to{opacity:1;transform:translateX(-50%) scale(1)} }
+    @keyframes toastIn { from{opacity:0;transform:translateX(-50%) translateY(10px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
+    @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+    @keyframes successBounce { from{opacity:0;transform:scale(0)} to{opacity:1;transform:scale(1)} }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- React + Babel via CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // ── DATA ──────────────────────────────────────────────────────────────────
+    const CATEGORIES = ["All","Popular","Burgers","Pizza","Sushi","Bowls","Drinks","Desserts"];
+
+    const MENU = [
+      { id:1,  name:"Smash Burger",       cat:"Burgers",  price:14.9,  cal:680, rating:4.9, reviews:312, emoji:"🍔", badge:"🔥 Bestseller", desc:"Double smash patty, American cheese, pickles, special sauce on a brioche bun.", time:"12 min", popular:true },
+      { id:2,  name:"BBQ Bacon Stack",    cat:"Burgers",  price:16.5,  cal:780, rating:4.7, reviews:198, emoji:"🥓", badge:"",              desc:"Crispy bacon, cheddar, caramelised onion, tangy BBQ sauce.", time:"14 min", popular:false },
+      { id:3,  name:"Truffle Margherita", cat:"Pizza",    price:18.0,  cal:720, rating:4.8, reviews:245, emoji:"🍕", badge:"Chef's Pick",   desc:"San Marzano tomato, buffalo mozzarella, fresh basil, truffle oil.", time:"18 min", popular:true },
+      { id:4,  name:"Pepperoni Diavola",  cat:"Pizza",    price:17.5,  cal:810, rating:4.6, reviews:183, emoji:"🌶️", badge:"Spicy",         desc:"Spicy pepperoni, nduja, honey drizzle, oregano.", time:"18 min", popular:false },
+      { id:5,  name:"Salmon Nigiri Set",  cat:"Sushi",    price:22.0,  cal:380, rating:4.9, reviews:421, emoji:"🍣", badge:"🔥 Bestseller", desc:"8-piece premium Atlantic salmon nigiri with wasabi & pickled ginger.", time:"10 min", popular:true },
+      { id:6,  name:"Dragon Roll",        cat:"Sushi",    price:19.5,  cal:460, rating:4.7, reviews:289, emoji:"🥑", badge:"",              desc:"Tempura shrimp inside, avocado on top, eel sauce drizzle.", time:"12 min", popular:false },
+      { id:7,  name:"Teriyaki Bowl",      cat:"Bowls",    price:13.5,  cal:540, rating:4.6, reviews:156, emoji:"🍱", badge:"Healthy",       desc:"Grilled chicken, steamed rice, edamame, pickled cucumber, sesame.", time:"10 min", popular:false },
+      { id:8,  name:"Poke Power Bowl",    cat:"Bowls",    price:15.0,  cal:490, rating:4.8, reviews:267, emoji:"🐟", badge:"🔥 Bestseller", desc:"Ahi tuna, avocado, mango, seaweed salad, ponzu dressing.", time:"8 min",  popular:true },
+      { id:9,  name:"Yuzu Lemonade",      cat:"Drinks",   price:5.5,   cal:120, rating:4.7, reviews:88,  emoji:"🍋", badge:"",              desc:"Fresh yuzu, lemon juice, sparkling water, honey, mint.", time:"3 min",  popular:false },
+      { id:10, name:"Matcha Latte",       cat:"Drinks",   price:6.0,   cal:180, rating:4.9, reviews:311, emoji:"🍵", badge:"Fan Fav",       desc:"Ceremonial grade matcha, oat milk, touch of vanilla.", time:"4 min",  popular:true },
+      { id:11, name:"Mochi Ice Cream",    cat:"Desserts", price:8.5,   cal:290, rating:4.8, reviews:192, emoji:"🍡", badge:"New",           desc:"3-piece selection: strawberry, matcha, mango. Served chilled.", time:"5 min",  popular:false },
+      { id:12, name:"Chocolate Lava Cake",cat:"Desserts", price:9.0,   cal:420, rating:4.9, reviews:374, emoji:"🍫", badge:"🔥 Bestseller", desc:"Warm dark chocolate fondant, vanilla bean ice cream, raspberry coulis.", time:"8 min",  popular:true },
+    ];
+
+    const PAYMENT_METHODS = [
+      { id:"card",   label:"Credit / Debit Card", icon:"💳" },
+      { id:"apple",  label:"Apple Pay",            icon:"🍎" },
+      { id:"google", label:"Google Pay",           icon:"G"  },
+      { id:"crypto", label:"Crypto Wallet",        icon:"₿"  },
+    ];
+
+    const fmt = (n) => `$${n.toFixed(2)}`;
+
+    // ── HELPERS ───────────────────────────────────────────────────────────────
+    const Stars = ({ r }) => (
+      <span style={{color:"#f59e0b",fontSize:11,letterSpacing:1}}>
+        {"★".repeat(Math.round(r))}{"☆".repeat(5-Math.round(r))}
+      </span>
+    );
+
+    const Badge = ({ text }) => !text ? null : (
+      <span style={{
+        background: text.includes("🔥") ? "linear-gradient(135deg,#ff6b35,#f7931e)"
+          : text==="Chef's Pick"         ? "linear-gradient(135deg,#6c63ff,#a78bfa)"
+          : text==="New"                 ? "linear-gradient(135deg,#10b981,#34d399)"
+          : text==="Spicy"               ? "linear-gradient(135deg,#ef4444,#f97316)"
+          : text==="Healthy"             ? "linear-gradient(135deg,#22c55e,#86efac)"
+          : text==="Fan Fav"             ? "linear-gradient(135deg,#ec4899,#f9a8d4)"
+          :                                "linear-gradient(135deg,#3b82f6,#93c5fd)",
+        color:"#fff", fontSize:9, fontWeight:700, padding:"2px 7px",
+        borderRadius:20, letterSpacing:0.5, textTransform:"uppercase",
+      }}>{text}</span>
+    );
+
+    // ── SPLASH ────────────────────────────────────────────────────────────────
+    function SplashScreen({ onDone }) {
+      useEffect(() => { const t = setTimeout(onDone, 2400); return () => clearTimeout(t); }, []);
+      return (
+        <div style={{
+          position:"fixed", inset:0,
+          background:"linear-gradient(160deg,#0a0a0f 0%,#12121a 60%,#1a0a1a 100%)",
+          display:"flex", flexDirection:"column", alignItems:"center",
+          justifyContent:"center", zIndex:999,
+        }}>
+          <div style={{animation:"splashPop 0.6s cubic-bezier(.34,1.56,.64,1) both"}}>
+            <div style={{fontSize:72,textAlign:"center",filter:"drop-shadow(0 0 30px rgba(255,107,53,0.7))"}}>🍽️</div>
+            <div style={{
+              fontFamily:"'Playfair Display',Georgia,serif",
+              fontSize:38, fontWeight:900, textAlign:"center", marginTop:12,
+              background:"linear-gradient(135deg,#ff6b35,#f7c59f,#ff6b35)",
+              WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", letterSpacing:-1,
+            }}>saveur.</div>
+            <div style={{color:"#ffffff60",fontSize:12,textAlign:"center",letterSpacing:4,marginTop:4,fontFamily:"monospace"}}>
+              FOOD · ORDER · PAY
+            </div>
+          </div>
+          <div style={{position:"absolute",bottom:80}}>
+            <div style={{width:180,height:3,background:"#ffffff15",borderRadius:10,overflow:"hidden"}}>
+              <div style={{height:"100%",background:"linear-gradient(90deg,#ff6b35,#f7c59f)",borderRadius:10,animation:"loadBar 2.2s ease forwards"}} />
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── HOME ──────────────────────────────────────────────────────────────────
+    function HomeScreen({ cart, onAdd, onViewItem, onViewCart }) {
+      const [cat, setCat] = useState("All");
+      const [search, setSearch] = useState("");
+      const [toast, setToast] = useState(null);
+
+      const filtered = MENU.filter(m =>
+        (cat==="All" ? true : cat==="Popular" ? m.popular : m.cat===cat) &&
+        (search ? m.name.toLowerCase().includes(search.toLowerCase()) : true)
+      );
+
+      const handleAdd = (item) => {
+        onAdd(item);
+        setToast(item.name);
+        setTimeout(() => setToast(null), 1800);
+      };
+
+      const cartCount = cart.reduce((s,i) => s+i.qty, 0);
+      const cartTotal = cart.reduce((s,i) => s+i.price*i.qty, 0);
+
+      return (
+        <div style={{background:"#0a0a0f",minHeight:"100vh",fontFamily:"'DM Sans',sans-serif",color:"#fff"}}>
+
+          {/* Sticky Header */}
+          <div style={{
+            padding:"52px 20px 14px",
+            background:"linear-gradient(180deg,#0a0a0f 70%,transparent)",
+            position:"sticky", top:0, zIndex:50, backdropFilter:"blur(20px)",
+          }}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+              <div>
+                <div style={{color:"#ff6b35",fontSize:11,letterSpacing:3,fontWeight:600,textTransform:"uppercase"}}>📍 Bengaluru, KA</div>
+                <div style={{fontFamily:"'Playfair Display',serif",fontSize:26,fontWeight:900,marginTop:2,lineHeight:1.1}}>
+                  What are you<br /><span style={{color:"#ff6b35"}}>craving?</span>
+                </div>
+              </div>
+              <div style={{
+                width:44,height:44,borderRadius:"50%",
+                background:"linear-gradient(135deg,#ff6b35,#f7c59f)",
+                display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,
+                cursor:"pointer",
+              }}>👤</div>
+            </div>
+
+            {/* Search */}
+            <div style={{position:"relative",marginBottom:12}}>
+              <span style={{position:"absolute",left:14,top:"50%",transform:"translateY(-50%)",fontSize:16,opacity:0.4}}>🔍</span>
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search dishes, cuisines..."
+                style={{
+                  width:"100%", padding:"12px 14px 12px 40px", borderRadius:14,
+                  background:"#1e1e2e", border:"1px solid #2a2a3a", color:"#fff",
+                  fontSize:14, outline:"none", fontFamily:"'DM Sans',sans-serif",
+                }}
+              />
+            </div>
+
+            {/* Categories */}
+            <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:2}}>
+              {CATEGORIES.map(c => (
+                <button key={c} onClick={() => setCat(c)} style={{
+                  flexShrink:0, padding:"7px 16px", borderRadius:50,
+                  background: cat===c ? "linear-gradient(135deg,#ff6b35,#f7931e)" : "#1e1e2e",
+                  border: cat===c ? "none" : "1px solid #2a2a3a",
+                  color: cat===c ? "#fff" : "#888",
+                  fontSize:12, fontWeight:600, cursor:"pointer",
+                  fontFamily:"'DM Sans',sans-serif", letterSpacing:0.3,
+                }}>{c}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Content */}
+          <div style={{padding:"10px 16px 130px"}}>
+            {cat==="All" && !search && (
+              <div style={{marginBottom:18}}>
+                <div style={{fontSize:13,color:"#888",marginBottom:12}}>
+                  ⚡ <span style={{color:"#f7931e",fontWeight:600}}>Express delivery</span> in 20–35 min
+                </div>
+                {/* Hero Card */}
+                <div onClick={() => onViewItem(MENU[0])} style={{
+                  borderRadius:22,overflow:"hidden",cursor:"pointer",
+                  background:"linear-gradient(135deg,#1a0808 0%,#2d1210 50%,#1a0a0a 100%)",
+                  border:"1px solid #3a1a1a",
+                  animation:"fadeIn 0.4s ease",
+                }}>
+                  <div style={{padding:"20px 20px 0"}}>
+                    <Badge text="🔥 Bestseller" />
+                    <div style={{fontSize:60,marginTop:8}}>🍔</div>
+                    <div style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:900,marginTop:6}}>Smash Burger</div>
+                    <div style={{color:"#ffffff70",fontSize:12,marginTop:5,lineHeight:1.6}}>
+                      Double smash patty, American cheese, pickles, special sauce on a brioche bun.
+                    </div>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",margin:"16px 0 18px"}}>
+                      <div>
+                        <Stars r={4.9} />
+                        <div style={{color:"#fff",fontWeight:900,fontSize:22,marginTop:2}}>$14.90</div>
+                      </div>
+                      <button onClick={e => { e.stopPropagation(); handleAdd(MENU[0]); }} style={{
+                        background:"linear-gradient(135deg,#ff6b35,#f7931e)",
+                        border:"none", color:"#fff", width:46,height:46, borderRadius:14,
+                        fontSize:24, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center",
+                      }}>+</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+              {filtered.map(item => (
+                <div key={item.id} onClick={() => onViewItem(item)} style={{
+                  background:"#12121a", borderRadius:18, overflow:"hidden",
+                  border:"1px solid #1e1e2e", cursor:"pointer",
+                  animation:"fadeIn 0.3s ease",
+                }}>
+                  <div style={{
+                    background:"linear-gradient(135deg,#1a1a2e,#16213e)",
+                    height:88, display:"flex", alignItems:"center", justifyContent:"center",
+                    fontSize:44, position:"relative",
+                  }}>
+                    {item.emoji}
+                    {item.badge && (
+                      <div style={{position:"absolute",top:7,left:7}}>
+                        <Badge text={item.badge} />
+                      </div>
+                    )}
+                  </div>
+                  <div style={{padding:"10px 11px 12px"}}>
+                    <div style={{fontWeight:700,fontSize:13,lineHeight:1.3}}>{item.name}</div>
+                    <div style={{marginTop:3}}>
+                      <Stars r={item.rating} />
+                      <span style={{color:"#ffffff35",fontSize:9,marginLeft:3}}>({item.reviews})</span>
+                    </div>
+                    <div style={{color:"#ffffff45",fontSize:10,marginTop:2}}>⏱ {item.time} · {item.cal} cal</div>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8}}>
+                      <div style={{fontWeight:900,fontSize:15,color:"#ff6b35"}}>{fmt(item.price)}</div>
+                      <button onClick={e => { e.stopPropagation(); handleAdd(item); }} style={{
+                        background:"linear-gradient(135deg,#ff6b35,#f7931e)",
+                        border:"none", color:"#fff", width:30,height:30, borderRadius:9,
+                        fontSize:19, cursor:"pointer", display:"flex", alignItems:"center",
+                        justifyContent:"center", fontWeight:700,
+                      }}>+</button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {filtered.length===0 && (
+              <div style={{textAlign:"center",padding:"60px 20px",color:"#ffffff30"}}>
+                <div style={{fontSize:48}}>🔍</div>
+                <div style={{marginTop:12,fontSize:14}}>No results for "{search}"</div>
+              </div>
+            )}
+          </div>
+
+          {/* Cart FAB */}
+          {cartCount > 0 && (
+            <button onClick={onViewCart} style={{
+              position:"fixed", bottom:28, left:"50%", transform:"translateX(-50%)",
+              background:"linear-gradient(135deg,#ff6b35,#f7931e)",
+              border:"none", borderRadius:50, padding:"15px 28px",
+              color:"#fff", fontWeight:700, fontSize:15, cursor:"pointer",
+              boxShadow:"0 8px 32px rgba(255,107,53,0.55)",
+              display:"flex", gap:12, alignItems:"center", whiteSpace:"nowrap",
+              fontFamily:"'DM Sans',sans-serif", animation:"cartPop 0.3s cubic-bezier(.34,1.56,.64,1)",
+              zIndex:60,
+            }}>
+              <span style={{
+                background:"rgba(0,0,0,0.25)", borderRadius:50, width:24,height:24,
+                display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:900,
+              }}>{cartCount}</span>
+              View Cart
+              <span>{fmt(cartTotal)}</span>
+            </button>
+          )}
+
+          {/* Toast */}
+          {toast && (
+            <div style={{
+              position:"fixed", bottom:108, left:"50%", transform:"translateX(-50%)",
+              background:"#1e1e2e", border:"1px solid #ff6b3540", borderRadius:50,
+              padding:"10px 20px", fontSize:13, fontWeight:600, color:"#ff6b35",
+              boxShadow:"0 4px 20px rgba(0,0,0,0.4)", zIndex:70,
+              animation:"toastIn 0.3s ease", whiteSpace:"nowrap",
+            }}>✓ {toast} added to cart</div>
+          )}
+        </div>
+      );
+    }
+
+    // ── ITEM DETAIL ───────────────────────────────────────────────────────────
+    function ItemDetailScreen({ item, cart, onBack, onAdd }) {
+      const [localQty, setLocalQty] = useState(1);
+      return (
+        <div style={{background:"#0a0a0f",minHeight:"100vh",fontFamily:"'DM Sans',sans-serif",color:"#fff"}}>
+          <div style={{
+            background:"linear-gradient(135deg,#1a1a2e 0%,#16213e 60%,#0f3460 100%)",
+            height:260, display:"flex", alignItems:"center", justifyContent:"center",
+            fontSize:100, position:"relative",
+          }}>
+            <button onClick={onBack} style={{
+              position:"absolute", top:52, left:16,
+              background:"rgba(0,0,0,0.45)", border:"none", color:"#fff",
+              width:40,height:40, borderRadius:12, fontSize:20, cursor:"pointer",
+            }}>←</button>
+            {item.emoji}
+            {item.badge && <div style={{position:"absolute",bottom:16,left:20}}><Badge text={item.badge} /></div>}
+          </div>
+
+          <div style={{padding:"20px 20px 130px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+              <div style={{flex:1}}>
+                <div style={{fontFamily:"'Playfair Display',serif",fontSize:26,fontWeight:900,lineHeight:1.2}}>{item.name}</div>
+                <div style={{color:"#888",fontSize:12,marginTop:5}}>{item.cat} · {item.time} · {item.cal} cal</div>
+              </div>
+              <div style={{textAlign:"right",marginLeft:12}}>
+                <div style={{fontWeight:900,fontSize:24,color:"#ff6b35"}}>{fmt(item.price)}</div>
+                <Stars r={item.rating} />
+                <div style={{color:"#ffffff35",fontSize:10,marginTop:1}}>{item.reviews} reviews</div>
+              </div>
+            </div>
+
+            <div style={{background:"#12121a",borderRadius:14,padding:14,marginTop:18,border:"1px solid #1e1e2e"}}>
+              <div style={{color:"#ffffffa0",fontSize:13,lineHeight:1.75}}>{item.desc}</div>
+            </div>
+
+            <div style={{marginTop:20}}>
+              <div style={{fontSize:11,fontWeight:700,letterSpacing:2,color:"#ffffff50",textTransform:"uppercase",marginBottom:10}}>Nutrition</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
+                {[
+                  {label:"Calories",val:item.cal,unit:"kcal"},
+                  {label:"Protein",val:Math.round(item.cal*0.06),unit:"g"},
+                  {label:"Carbs",val:Math.round(item.cal*0.14),unit:"g"},
+                ].map(n => (
+                  <div key={n.label} style={{background:"#12121a",borderRadius:12,padding:"12px 10px",textAlign:"center",border:"1px solid #1e1e2e"}}>
+                    <div style={{fontWeight:900,fontSize:18,color:"#ff6b35"}}>{n.val}</div>
+                    <div style={{fontSize:10,color:"#ffffff45",marginTop:2}}>{n.unit}</div>
+                    <div style={{fontSize:10,color:"#ffffff65",marginTop:1}}>{n.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{marginTop:22,display:"flex",gap:14,alignItems:"center"}}>
+              <div style={{display:"flex",alignItems:"center",gap:16,background:"#12121a",borderRadius:14,padding:"10px 16px",border:"1px solid #1e1e2e"}}>
+                <button onClick={() => setLocalQty(Math.max(1,localQty-1))} style={{
+                  background:"#1e1e2e",border:"none",color:"#fff",width:32,height:32,borderRadius:9,fontSize:20,cursor:"pointer",
+                }}>−</button>
+                <span style={{fontWeight:900,fontSize:18,minWidth:20,textAlign:"center"}}>{localQty}</span>
+                <button onClick={() => setLocalQty(localQty+1)} style={{
+                  background:"linear-gradient(135deg,#ff6b35,#f7931e)",border:"none",color:"#fff",
+                  width:32,height:32,borderRadius:9,fontSize:20,cursor:"pointer",
+                }}>+</button>
+              </div>
+              <div style={{color:"#ffffff50",fontSize:13}}>
+                Total: <span style={{color:"#ff6b35",fontWeight:800}}>{fmt(item.price*localQty)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div style={{position:"fixed",bottom:0,left:0,right:0,padding:"16px 20px 36px",background:"linear-gradient(0deg,#0a0a0f 60%,transparent)"}}>
+            <button onClick={() => { for(let i=0;i<localQty;i++) onAdd(item); onBack(); }} style={{
+              width:"100%", padding:16, borderRadius:16,
+              background:"linear-gradient(135deg,#ff6b35,#f7931e)", border:"none",
+              color:"#fff", fontSize:16, fontWeight:800, cursor:"pointer",
+              boxShadow:"0 8px 32px rgba(255,107,53,0.45)",
+              fontFamily:"'DM Sans',sans-serif",
+            }}>
+              Add {localQty} to Cart · {fmt(item.price*localQty)}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // ── CART ──────────────────────────────────────────────────────────────────
+    function CartScreen({ cart, onBack, onQty, onCheckout }) {
+      const subtotal = cart.reduce((s,i) => s+i.price*i.qty, 0);
+      const delivery = 2.99;
+      const tax = subtotal * 0.08;
+      const total = subtotal + delivery + tax;
+
+      return (
+        <div style={{background:"#0a0a0f",minHeight:"100vh",fontFamily:"'DM Sans',sans-serif",color:"#fff"}}>
+          <div style={{padding:"52px 20px 16px"}}>
+            <button onClick={onBack} style={{background:"none",border:"none",color:"#ff6b35",fontSize:14,fontWeight:700,cursor:"pointer",marginBottom:12,padding:0,fontFamily:"'DM Sans',sans-serif"}}>← Menu</button>
+            <div style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900}}>Your Cart</div>
+            <div style={{color:"#ffffff45",fontSize:12,marginTop:4}}>
+              {cart.reduce((s,i)=>s+i.qty,0)} items · Est. 25–35 min
+            </div>
+          </div>
+
+          <div style={{padding:"4px 20px 180px"}}>
+            {cart.length===0 ? (
+              <div style={{textAlign:"center",padding:"80px 20px",color:"#ffffff30"}}>
+                <div style={{fontSize:60}}>🛒</div>
+                <div style={{marginTop:12,fontSize:15}}>Your cart is empty</div>
+                <div style={{fontSize:12,marginTop:6,color:"#ffffff20"}}>Add something delicious!</div>
+              </div>
+            ) : (
+              <>
+                {cart.map(item => (
+                  <div key={item.id} style={{
+                    display:"flex",gap:12,alignItems:"center",
+                    background:"#12121a",borderRadius:16,padding:"13px 13px",
+                    marginBottom:10, border:"1px solid #1e1e2e",
+                  }}>
+                    <div style={{
+                      width:54,height:54,borderRadius:12,
+                      background:"linear-gradient(135deg,#1a1a2e,#16213e)",
+                      display:"flex",alignItems:"center",justifyContent:"center",
+                      fontSize:28,flexShrink:0,
+                    }}>{item.emoji}</div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontWeight:700,fontSize:13,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{item.name}</div>
+                      <div style={{color:"#ff6b35",fontWeight:800,fontSize:13,marginTop:3}}>{fmt(item.price)}</div>
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <button onClick={() => onQty(item.id,item.qty-1)} style={{
+                        background:"#1e1e2e",border:"none",color:"#fff",
+                        width:28,height:28,borderRadius:8,fontSize:17,cursor:"pointer",
+                      }}>−</button>
+                      <span style={{fontWeight:700,minWidth:16,textAlign:"center",fontSize:15}}>{item.qty}</span>
+                      <button onClick={() => onQty(item.id,item.qty+1)} style={{
+                        background:"linear-gradient(135deg,#ff6b35,#f7931e)",
+                        border:"none",color:"#fff",width:28,height:28,borderRadius:8,fontSize:17,cursor:"pointer",
+                      }}>+</button>
+                    </div>
+                  </div>
+                ))}
+
+                <div style={{display:"flex",gap:8,margin:"8px 0 18px"}}>
+                  <input placeholder="🏷️  Promo code" style={{
+                    flex:1,padding:"12px 14px",borderRadius:12,background:"#12121a",
+                    border:"1px solid #2a2a3a",color:"#fff",fontSize:13,outline:"none",
+                    fontFamily:"'DM Sans',sans-serif",
+                  }} />
+                  <button style={{
+                    padding:"12px 18px",borderRadius:12,background:"#1e1e2e",
+                    border:"1px solid #2a2a3a",color:"#ff6b35",fontSize:13,fontWeight:700,cursor:"pointer",
+                    fontFamily:"'DM Sans',sans-serif",
+                  }}>Apply</button>
+                </div>
+
+                <div style={{background:"#12121a",borderRadius:16,padding:16,border:"1px solid #1e1e2e"}}>
+                  {[["Subtotal",fmt(subtotal)],["Delivery fee",fmt(delivery)],["Tax (8%)",fmt(tax)]].map(([l,v]) => (
+                    <div key={l} style={{display:"flex",justifyContent:"space-between",marginBottom:10,color:"#ffffff65",fontSize:13}}>
+                      <span>{l}</span><span>{v}</span>
+                    </div>
+                  ))}
+                  <div style={{borderTop:"1px solid #2a2a3a",paddingTop:12,display:"flex",justifyContent:"space-between"}}>
+                    <span style={{fontWeight:800,fontSize:16}}>Total</span>
+                    <span style={{fontWeight:900,fontSize:18,color:"#ff6b35"}}>{fmt(total)}</span>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {cart.length>0 && (
+            <div style={{position:"fixed",bottom:0,left:0,right:0,padding:"16px 20px 36px",background:"linear-gradient(0deg,#0a0a0f 60%,transparent)"}}>
+              <button onClick={() => onCheckout(total)} style={{
+                width:"100%",padding:16,borderRadius:16,
+                background:"linear-gradient(135deg,#ff6b35,#f7931e)",border:"none",
+                color:"#fff",fontSize:16,fontWeight:800,cursor:"pointer",
+                boxShadow:"0 8px 32px rgba(255,107,53,0.45)",
+                fontFamily:"'DM Sans',sans-serif",
+              }}>
+                Proceed to Payment · {fmt(total)}
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ── PAYMENT ───────────────────────────────────────────────────────────────
+    function PaymentScreen({ total, onBack, onSuccess }) {
+      const [method, setMethod] = useState("card");
+      const [step, setStep] = useState("form");
+      const [card, setCard] = useState({num:"",exp:"",cvv:"",name:""});
+      const [errors, setErrors] = useState({});
+
+      const fmtCardNum = v => v.replace(/\D/g,"").slice(0,16).replace(/(.{4})/g,"$1 ").trim();
+      const fmtExp = v => { const d=v.replace(/\D/g,"").slice(0,4); return d.length>2 ? d.slice(0,2)+"/"+d.slice(2) : d; };
+
+      const validate = () => {
+        const e = {};
+        if(method==="card") {
+          if(card.num.replace(/\s/g,"").length<16) e.num="Enter 16-digit card number";
+          if(card.exp.length<5) e.exp="Enter expiry MM/YY";
+          if(card.cvv.length<3) e.cvv="Enter 3-digit CVV";
+          if(!card.name.trim()) e.name="Enter cardholder name";
+        }
+        setErrors(e);
+        return Object.keys(e).length===0;
+      };
+
+      const handlePay = () => {
+        if(!validate()) return;
+        setStep("processing");
+        setTimeout(() => { setStep("done"); setTimeout(onSuccess, 1800); }, 2400);
+      };
+
+      const inp = (err) => ({
+        width:"100%", padding:"14px", borderRadius:12, marginBottom:4,
+        background:"#12121a", border:`1px solid ${err?"#ef4444":"#2a2a3a"}`,
+        color:"#fff", fontSize:14, outline:"none", fontFamily:"'DM Sans',sans-serif",
+      });
+
+      if(step==="processing") return (
+        <div style={{background:"#0a0a0f",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans',sans-serif",color:"#fff"}}>
+          <div style={{fontSize:64,animation:"spin 0.8s linear infinite"}}>⟳</div>
+          <div style={{marginTop:20,fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:900}}>Processing Payment</div>
+          <div style={{color:"#ffffff45",fontSize:13,marginTop:8}}>Please don't close the app…</div>
+        </div>
+      );
+
+      if(step==="done") return (
+        <div style={{background:"#0a0a0f",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans',sans-serif",color:"#fff",padding:24,textAlign:"center"}}>
+          <div style={{fontSize:80,animation:"successBounce 0.5s cubic-bezier(.34,1.56,.64,1)"}}>✅</div>
+          <div style={{marginTop:20,fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900}}>Order Confirmed!</div>
+          <div style={{color:"#ffffff55",fontSize:14,marginTop:8,lineHeight:1.6}}>Your food is being prepared.<br/>Estimated 25–35 min.</div>
+          <div style={{background:"#12121a",borderRadius:16,padding:"16px 28px",marginTop:24,border:"1px solid #ff6b3530",width:"100%"}}>
+            <div style={{color:"#ffffff45",fontSize:11,letterSpacing:2,textTransform:"uppercase"}}>Order Total</div>
+            <div style={{color:"#ff6b35",fontWeight:900,fontSize:30,marginTop:4}}>{fmt(total)}</div>
+          </div>
+        </div>
+      );
+
+      return (
+        <div style={{background:"#0a0a0f",minHeight:"100vh",fontFamily:"'DM Sans',sans-serif",color:"#fff"}}>
+          <div style={{padding:"52px 20px 16px"}}>
+            <button onClick={onBack} style={{background:"none",border:"none",color:"#ff6b35",fontSize:14,fontWeight:700,cursor:"pointer",marginBottom:12,padding:0,fontFamily:"'DM Sans',sans-serif"}}>← Cart</button>
+            <div style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:900}}>Payment</div>
+            <div style={{color:"#ffffff45",fontSize:12,marginTop:4}}>Secure · Encrypted · Instant</div>
+          </div>
+
+          <div style={{padding:"0 20px 160px"}}>
+            {/* Amount */}
+            <div style={{
+              background:"linear-gradient(135deg,#1a0a06,#2d1505)",
+              borderRadius:16, padding:"16px 20px", marginBottom:20,
+              border:"1px solid #ff6b3528",
+              display:"flex", justifyContent:"space-between", alignItems:"center",
+            }}>
+              <div>
+                <div style={{color:"#ffffff55",fontSize:11,letterSpacing:2,textTransform:"uppercase"}}>Amount Due</div>
+                <div style={{color:"#ff6b35",fontWeight:900,fontSize:32,marginTop:2}}>{fmt(total)}</div>
+              </div>
+              <div style={{fontSize:40}}>🔐</div>
+            </div>
+
+            {/* Methods */}
+            <div style={{marginBottom:20}}>
+              <div style={{fontSize:11,fontWeight:700,letterSpacing:2,color:"#ffffff45",textTransform:"uppercase",marginBottom:10}}>Payment Method</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                {PAYMENT_METHODS.map(pm => (
+                  <button key={pm.id} onClick={() => setMethod(pm.id)} style={{
+                    background: method===pm.id ? "linear-gradient(135deg,#ff6b3520,#f7931e10)" : "#12121a",
+                    border: `1px solid ${method===pm.id?"#ff6b35":"#2a2a3a"}`,
+                    borderRadius:14, padding:"12px 10px", cursor:"pointer",
+                    display:"flex", alignItems:"center", gap:8, color:"#fff",
+                    fontFamily:"'DM Sans',sans-serif",
+                  }}>
+                    <span style={{fontSize:18}}>{pm.icon}</span>
+                    <span style={{fontSize:11,fontWeight:600,textAlign:"left",lineHeight:1.3}}>{pm.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {method==="card" && (
+              <div>
+                <div style={{fontSize:11,fontWeight:700,letterSpacing:2,color:"#ffffff45",textTransform:"uppercase",marginBottom:12}}>Card Details</div>
+
+                {/* Card Preview */}
+                <div style={{
+                  background:"linear-gradient(135deg,#1a1a3e 0%,#0f3460 50%,#16213e 100%)",
+                  borderRadius:20, padding:"20px 22px", marginBottom:18,
+                  border:"1px solid #ffffff0f", position:"relative", overflow:"hidden",
+                }}>
+                  <div style={{position:"absolute",top:-20,right:-20,width:120,height:120,borderRadius:"50%",background:"rgba(255,107,53,0.08)"}} />
+                  <div style={{fontSize:28,marginBottom:18}}>💳</div>
+                  <div style={{fontFamily:"monospace",fontSize:15,letterSpacing:3,color:"#ffffffcc"}}>
+                    {(card.num||"•••• •••• •••• ••••")}
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",marginTop:14}}>
+                    <div>
+                      <div style={{color:"#ffffff35",fontSize:9,letterSpacing:2}}>CARDHOLDER</div>
+                      <div style={{fontSize:12,fontWeight:600,marginTop:2}}>{card.name||"YOUR NAME"}</div>
+                    </div>
+                    <div style={{textAlign:"right"}}>
+                      <div style={{color:"#ffffff35",fontSize:9,letterSpacing:2}}>EXPIRES</div>
+                      <div style={{fontSize:12,fontWeight:600,marginTop:2}}>{card.exp||"MM/YY"}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <input value={card.num} onChange={e => setCard({...card,num:fmtCardNum(e.target.value)})}
+                  placeholder="Card Number" style={inp(errors.num)} />
+                {errors.num && <div style={{color:"#ef4444",fontSize:11,marginBottom:8}}>{errors.num}</div>}
+
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                  <div>
+                    <input value={card.exp} onChange={e => setCard({...card,exp:fmtExp(e.target.value)})}
+                      placeholder="MM/YY" style={inp(errors.exp)} />
+                    {errors.exp && <div style={{color:"#ef4444",fontSize:11,marginBottom:8}}>{errors.exp}</div>}
+                  </div>
+                  <div>
+                    <input value={card.cvv} onChange={e => setCard({...card,cvv:e.target.value.replace(/\D/g,"").slice(0,3)})}
+                      placeholder="CVV" type="password" style={inp(errors.cvv)} />
+                    {errors.cvv && <div style={{color:"#ef4444",fontSize:11,marginBottom:8}}>{errors.cvv}</div>}
+                  </div>
+                </div>
+                <input value={card.name} onChange={e => setCard({...card,name:e.target.value})}
+                  placeholder="Cardholder Name" style={inp(errors.name)} />
+                {errors.name && <div style={{color:"#ef4444",fontSize:11,marginBottom:8}}>{errors.name}</div>}
+              </div>
+            )}
+
+            {method!=="card" && (
+              <div style={{background:"#12121a",borderRadius:16,padding:"28px 20px",textAlign:"center",border:"1px solid #2a2a3a",marginBottom:16}}>
+                <div style={{fontSize:48}}>{PAYMENT_METHODS.find(p=>p.id===method)?.icon}</div>
+                <div style={{marginTop:12,fontWeight:700,fontSize:16}}>{PAYMENT_METHODS.find(p=>p.id===method)?.label}</div>
+                <div style={{color:"#ffffff45",fontSize:12,marginTop:6}}>Tap Pay Now to authenticate</div>
+              </div>
+            )}
+
+            <div style={{display:"flex",gap:8,alignItems:"center",padding:"10px 14px",background:"#12121a",borderRadius:12,border:"1px solid #1e1e2e"}}>
+              <span style={{fontSize:16}}>🔒</span>
+              <span style={{color:"#ffffff45",fontSize:11}}>256-bit SSL · PCI DSS compliant · Secure checkout</span>
+            </div>
+          </div>
+
+          <div style={{position:"fixed",bottom:0,left:0,right:0,padding:"16px 20px 36px",background:"linear-gradient(0deg,#0a0a0f 60%,transparent)"}}>
+            <button onClick={handlePay} style={{
+              width:"100%",padding:16,borderRadius:16,
+              background:"linear-gradient(135deg,#ff6b35,#f7931e)",border:"none",
+              color:"#fff",fontSize:16,fontWeight:800,cursor:"pointer",
+              boxShadow:"0 8px 32px rgba(255,107,53,0.5)",
+              fontFamily:"'DM Sans',sans-serif",
+            }}>🔐 Pay {fmt(total)} Now</button>
+          </div>
+        </div>
+      );
+    }
+
+    // ── SUCCESS ───────────────────────────────────────────────────────────────
+    function SuccessScreen({ onRestart }) {
+      return (
+        <div style={{
+          background:"#0a0a0f",minHeight:"100vh",fontFamily:"'DM Sans',sans-serif",
+          color:"#fff",display:"flex",flexDirection:"column",
+          alignItems:"center",justifyContent:"center",padding:24,
+        }}>
+          <div style={{fontSize:80}}>🎉</div>
+          <div style={{fontFamily:"'Playfair Display',serif",fontSize:30,fontWeight:900,textAlign:"center",marginTop:16}}>
+            Your order is<br /><span style={{color:"#ff6b35"}}>on its way!</span>
+          </div>
+          <div style={{color:"#ffffff50",fontSize:14,marginTop:12,textAlign:"center",lineHeight:1.7}}>
+            Estimated delivery: <strong style={{color:"#fff"}}>28 minutes</strong><br />
+            Track your order in real-time below.
+          </div>
+
+          <div style={{width:"100%",background:"#12121a",borderRadius:20,padding:20,marginTop:28,border:"1px solid #1e1e2e"}}>
+            {[
+              {label:"Order Received",done:true,icon:"✅"},
+              {label:"Being Prepared",done:true,icon:"👨‍🍳"},
+              {label:"Out for Delivery",done:false,icon:"🛵"},
+              {label:"Delivered",done:false,icon:"🏠"},
+            ].map((s,i,arr) => (
+              <div key={s.label} style={{display:"flex",alignItems:"center",gap:14,marginBottom:i<arr.length-1?16:0}}>
+                <div style={{
+                  width:36,height:36,borderRadius:"50%",
+                  background: s.done ? "linear-gradient(135deg,#ff6b35,#f7931e)" : "#1e1e2e",
+                  display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0,
+                  border: s.done ? "none" : "1px solid #2a2a3a",
+                }}>{s.icon}</div>
+                <div>
+                  <div style={{fontWeight:700,fontSize:14,color:s.done?"#fff":"#ffffff35"}}>{s.label}</div>
+                  {s.done && <div style={{color:"#ff6b35",fontSize:11,marginTop:1}}>Completed</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <button onClick={onRestart} style={{
+            marginTop:28,padding:"14px 44px",borderRadius:50,
+            background:"linear-gradient(135deg,#ff6b35,#f7931e)",border:"none",
+            color:"#fff",fontWeight:700,fontSize:15,cursor:"pointer",
+            boxShadow:"0 6px 24px rgba(255,107,53,0.4)",
+            fontFamily:"'DM Sans',sans-serif",
+          }}>Order Again</button>
+        </div>
+      );
+    }
+
+    // ── ROOT ──────────────────────────────────────────────────────────────────
+    function App() {
+      const [splash, setSplash] = useState(true);
+      const [screen, setScreen] = useState("home");
+      const [selectedItem, setSelectedItem] = useState(null);
+      const [cart, setCart] = useState([]);
+      const [checkoutTotal, setCheckoutTotal] = useState(0);
+
+      const addToCart = (item) => {
+        setCart(prev => {
+          const ex = prev.find(c => c.id===item.id);
+          if(ex) return prev.map(c => c.id===item.id ? {...c,qty:c.qty+1} : c);
+          return [...prev, {...item,qty:1}];
+        });
+      };
+
+      const setQty = (id, qty) => {
+        if(qty<=0) setCart(p => p.filter(c => c.id!==id));
+        else setCart(p => p.map(c => c.id===id ? {...c,qty} : c));
+      };
+
+      if(splash) return <SplashScreen onDone={() => setSplash(false)} />;
+
+      return (
+        <div style={{maxWidth:430, margin:"0 auto", minHeight:"100vh"}}>
+          {screen==="home" && (
+            <HomeScreen
+              cart={cart}
+              onAdd={addToCart}
+              onViewItem={item => { setSelectedItem(item); setScreen("item"); }}
+              onViewCart={() => setScreen("cart")}
+            />
+          )}
+          {screen==="item" && selectedItem && (
+            <ItemDetailScreen
+              item={selectedItem}
+              cart={cart}
+              onBack={() => setScreen("home")}
+              onAdd={addToCart}
+            />
+          )}
+          {screen==="cart" && (
+            <CartScreen
+              cart={cart}
+              onBack={() => setScreen("home")}
+              onQty={setQty}
+              onCheckout={t => { setCheckoutTotal(t); setScreen("payment"); }}
+            />
+          )}
+          {screen==="payment" && (
+            <PaymentScreen
+              total={checkoutTotal}
+              onBack={() => setScreen("cart")}
+              onSuccess={() => setScreen("success")}
+            />
+          )}
+          {screen==="success" && (
+            <SuccessScreen onRestart={() => { setCart([]); setScreen("home"); }} />
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
